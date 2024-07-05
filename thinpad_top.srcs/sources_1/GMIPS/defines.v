@@ -1,9 +1,15 @@
 /*
- * @Author: TommyGong 
- * @Date: 2024-07-05 11:14:35 
- * @Last Modified by: TommyGong
- * @Last Modified time: 2024-07-05 11:17:12
+ * File: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS\defines.v
+ * Project: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS
+ * Created Date: 2024-07-05 11:14:10
+ * Author: Tommy Gong
+ * ----------------------------------------------------
+ * Last Modified: 2024-07-05 16:10:09
+ * Modified By: Tommy Gong
+ * ----------------------------------------------------
  */
+
+// 借鉴自 https://github.com/xiazhuo/nscc2022_personal
 
 `default_nettype none        // 无定义的网络类型，默认为none
 

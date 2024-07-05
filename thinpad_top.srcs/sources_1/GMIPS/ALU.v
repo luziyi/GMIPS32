@@ -1,25 +1,14 @@
+/*
+ * File: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS\ALU.v
+ * Project: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS
+ * Created Date: 2024-07-04 15:44:06
+ * Author: Tommy Gong
+ * ----------------------------------------------------
+ * Last Modified: 2024-07-05 15:58:13
+ * Modified By: Tommy Gong
+ * ----------------------------------------------------
+ */
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 2024/07/04 15:44:10
-// Design Name: 
-// Module Name: ALU
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
-
 module ALU(
     input [11:0] alu_control,
     input [31:0] alu_src1,

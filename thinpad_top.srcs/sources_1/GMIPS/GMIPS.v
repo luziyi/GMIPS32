@@ -1,9 +1,15 @@
 /*
- * @Author: TommyGong 
- * @Date: 2024-07-05 10:58:16 
- * @Last Modified by: TommyGong
- * @Last Modified time: 2024-07-05 11:17:14
+ * File: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS\GMIPS.v
+ * Project: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS
+ * Created Date: 2024-07-05 10:37:43
+ * Author: Tommy Gong
+ * ----------------------------------------------------
+ * Last Modified: 2024-07-05 16:14:41
+ * Modified By: Tommy Gong
+ * ----------------------------------------------------
  */
+
+
 
 module GMIPS (
     input wire clk,
@@ -22,7 +28,5 @@ module GMIPS (
 
     input wire [1:0] state
 );
-
-
 
 endmodule

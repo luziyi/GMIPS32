@@ -1,23 +1,14 @@
-`timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 2024/07/04 16:23:26
-// Design Name: 
-// Module Name: regfile
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
+/*
+ * File: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS\regfile.v
+ * Project: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS
+ * Created Date: 2024-07-04 16:23:24
+ * Author: Tommy Gong
+ * ----------------------------------------------------
+ * Last Modified: 2024-07-05 16:05:33
+ * Modified By: Tommy Gong
+ * ----------------------------------------------------
+ */
+
 
 
 module regfile(
