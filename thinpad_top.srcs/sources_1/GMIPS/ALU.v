@@ -24,7 +24,8 @@ module ALU(
     input [11:0] alu_control,
     input [31:0] alu_src1,
     input [31:0] alu_src2,
-    input [31:0] alu_result
+    output [31:0] alu_result,
+    output [31:0] mem_addr
     );
 
     wire op_add; //加法
@@ -107,6 +108,8 @@ module ALU(
     | ({32{op_srl}} & srl_result)
     | ({32{op_sra}} & sra_result)
     | ({32{op_lui}} & lui_result);
+
+    assign mem_addr = add_sub_result;
 
     
 
