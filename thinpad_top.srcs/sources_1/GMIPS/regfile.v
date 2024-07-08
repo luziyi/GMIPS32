@@ -1,15 +1,12 @@
 /*
- * File: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS\regfile.v
- * Project: e:\NSCSCC\2024175\thinpad_top.srcs\sources_1\GMIPS
+ * File:         e:\NSCSCC\GMIPS\thinpad_top.srcs\sources_1\GMIPS\regfile.v
+ * Project:      e:\NSCSCC\GMIPS\thinpad_top.srcs\sources_1\GMIPS
  * Created Date: 2024-07-04 16:23:24
- * Author: Tommy Gong
+ * Author:       Tommy Gong
+ * description:  寄存器文件，32*32位
  * ----------------------------------------------------
- * Last Modified: 2024-07-05 16:05:33
- * Modified By: Tommy Gong
- * ----------------------------------------------------
+ * Last Modified: 2024-07-08 08:46:17
  */
-
-
 
 module regfile(
     input clk,

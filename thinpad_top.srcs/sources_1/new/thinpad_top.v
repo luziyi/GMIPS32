@@ -1,9 +1,13 @@
 /*
- * @Author: TommyGong 
- * @Date: 2024-07-05 10:58:00 
- * @Last Modified by: TommyGong
- * @Last Modified time: 2024-07-05 11:17:19
+ * File:         e:\NSCSCC\GMIPS\thinpad_top.srcs\sources_1\new\thinpad_top.v
+ * Project:      e:\NSCSCC\GMIPS\thinpad_top.srcs\sources_1\new
+ * Created Date: 2024-07-02 09:42:18
+ * Author:       Tommy Gong
+ * description:  
+ * ----------------------------------------------------
+ * Last Modified: 2024-07-08 10:16:28
  */
+
 `default_nettype none
 
 module thinpad_top (
@@ -84,6 +88,8 @@ module thinpad_top (
   assign resetn = ~reset_of_clk10M;
 
 
+
+
   // /* =========== Demo code begin =========== */
 
 
@@ -133,49 +139,7 @@ module thinpad_top (
   //     end
   // end
 
-  // //直连串口接收发送演示，从直连串口收到的数据再发送出去
-  // wire [7:0] ext_uart_rx;
-  // reg  [7:0] ext_uart_buffer, ext_uart_tx;
-  // wire ext_uart_ready, ext_uart_clear, ext_uart_busy;
-  // reg ext_uart_start, ext_uart_avai;
 
-  // assign number = ext_uart_buffer;
-
-  // async_receiver #(.ClkFrequency(50000000),.Baud(9600)) //接收模块，9600无检验位
-  //     ext_uart_r(
-  //         .clk(clk_50M),                       //外部时钟信号
-  //         .RxD(rxd),                           //外部串行信号输入
-  //         .RxD_data_ready(ext_uart_ready),  //数据接收到标志
-  //         .RxD_clear(ext_uart_clear),       //清除接收标志
-  //         .RxD_data(ext_uart_rx)             //接收到的一字节数据
-  //     );
-
-  // assign ext_uart_clear = ext_uart_ready; //收到数据的同时，清除标志，因为数据已取到ext_uart_buffer中
-  // always @(posedge clk_50M) begin //接收到缓冲区ext_uart_buffer
-  //     if(ext_uart_ready)begin
-  //         ext_uart_buffer <= ext_uart_rx;
-  //         ext_uart_avai <= 1;
-  //     end else if(!ext_uart_busy && ext_uart_avai)begin 
-  //         ext_uart_avai <= 0;
-  //     end
-  // end
-  // always @(posedge clk_50M) begin //将缓冲区ext_uart_buffer发送出去
-  //     if(!ext_uart_busy && ext_uart_avai)begin 
-  //         ext_uart_tx <= ext_uart_buffer;
-  //         ext_uart_start <= 1;
-  //     end else begin 
-  //         ext_uart_start <= 0;
-  //     end
-  // end
-
-  // async_transmitter #(.ClkFrequency(50000000),.Baud(9600)) //发送模块，9600无检验位
-  //     ext_uart_t(
-  //         .clk(clk_50M),                  //外部时钟信号
-  //         .TxD(txd),                      //串行信号输出
-  //         .TxD_busy(ext_uart_busy),       //发送器忙状态指示
-  //         .TxD_start(ext_uart_start),    //开始发送信号
-  //         .TxD_data(ext_uart_tx)        //待发送的数据
-  //     );
 
   // //图像输出演示，分辨率800x600@75Hz，像素时钟为50MHz
   // wire [11:0] hdata;
