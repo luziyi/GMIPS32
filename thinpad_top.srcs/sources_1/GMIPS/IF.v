@@ -5,36 +5,35 @@
  * Author:       Tommy Gong
  * description:  pc控制器
  * ----------------------------------------------------
- * Last Modified: 2024-07-08 09:23:00
+ * Last Modified: 2024-07-12 09:57:46
  */
 
 module IF (
-    input wire        clk,
-    input wire        reset,
-    input wire        branch_flag_i,
-    input wire [31:0] branch_address_i,
-    input wire        stall,             //暂停信号
-
-    output reg [31:0] inst_addr,   //指令地址
-    output reg        inst_en_out
+    input  wire        clk,
+    input  wire        reset,
+    input  wire        branch_flag_i,
+    input  wire [31:0] branch_address_i,
+    input  wire        stall,             //暂停信号
+    output reg  [31:0] pc,
+    output reg         ce
 );
 
   always @(posedge clk) begin  //同步复位
     if (reset == 1'b1) begin
-      inst_en_out <= 1'b0;
+      ce <= 1'b0;
     end else begin
-      inst_en_out <= 1'b1;
+      ce <= 1'b1;
     end
   end
 
   always @(posedge clk) begin
-    if (inst_en_out == 1'b0) begin
-      inst_addr <= 32'h80000000;  //pc指令起始地址
+    if (ce == 1'b0) begin
+      pc <= 32'h80000000;  //pc指令起始地址
     end else if (stall == 1'b0) begin
       if (branch_flag_i) begin
-        inst_addr <= branch_address_i;
+        pc <= branch_address_i;
       end else begin
-        inst_addr <= inst_addr + 4'h4;
+        pc <= pc + 4'h4;
       end
     end
   end
