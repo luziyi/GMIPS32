@@ -5,10 +5,10 @@
  * Author:       Tommy Gong
  * description:  
  * ----------------------------------------------------
- * Last Modified: 2024-07-12 09:56:50
+ * Last Modified: 2024-07-12 10:20:08
  */
 
-module stall_ctrl (
+module stall (
     input wire rst,
     input wire stallreq_from_id,
     input wire stallreq_from_baseram,

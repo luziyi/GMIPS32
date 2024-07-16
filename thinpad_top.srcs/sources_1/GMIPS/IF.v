@@ -5,7 +5,7 @@
  * Author:       Tommy Gong
  * description:  pc控制器
  * ----------------------------------------------------
- * Last Modified: 2024-07-12 09:57:46
+ * Last Modified: 2024-07-12 10:23:47
  */
 
 module IF (
@@ -13,7 +13,7 @@ module IF (
     input  wire        reset,
     input  wire        branch_flag_i,
     input  wire [31:0] branch_address_i,
-    input  wire        stall,             //暂停信号
+    input  wire        stall,
     output reg  [31:0] pc,
     output reg         ce
 );

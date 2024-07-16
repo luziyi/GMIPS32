@@ -5,7 +5,7 @@
  * Author:       Tommy Gong
  * description:  ExtRam和baseRam的控制模块,负责指令读取和数据写入工作
  * ----------------------------------------------------
- * Last Modified: 2024-07-08 10:13:28
+ * Last Modified: 2024-07-16 09:52:55
  */
 
 module MemCtrl (
@@ -44,6 +44,7 @@ module MemCtrl (
     //直连串口信号
     output wire txd,  //直连串口发送端
     input  wire rxd   //直连串口接收端
+
 
 );
 
@@ -96,31 +97,31 @@ module MemCtrl (
       .TxD_data (TxD_data)    //待发送的数据
   );
 
-  //fifo接收模块
-  fifo_generator_0 RXD_FIFO (
-      .rst  (rst),
-      .clk  (clk),
-      .wr_en(RxD_FIFO_wr_en),  //写使能
-      .din  (RxD_FIFO_din),    //接收到的数据
-      .full (RxD_FIFO_full),   //判满标志
+  // //fifo接收模块
+  // fifo_generator_0 RXD_FIFO (
+  //     .rst  (rst),
+  //     .clk  (clk),
+  //     .wr_en(RxD_FIFO_wr_en),  //写使能
+  //     .din  (RxD_FIFO_din),    //接收到的数据
+  //     .full (RxD_FIFO_full),   //判满标志
 
-      .rd_en(RxD_FIFO_rd_en),  //读使能
-      .dout (RxD_FIFO_dout),   //传递给mem阶段读出的数据
-      .empty(RxD_FIFO_empty)   //判空标志
-  );
+  //     .rd_en(RxD_FIFO_rd_en),  //读使能
+  //     .dout (RxD_FIFO_dout),   //传递给mem阶段读出的数据
+  //     .empty(RxD_FIFO_empty)   //判空标志
+  // );
 
-  //fifo发送模块
-  fifo_generator_0 TXD_FIFO (
-      .rst  (rst),
-      .clk  (clk),
-      .wr_en(TxD_FIFO_wr_en),  //写使能
-      .din  (TxD_FIFO_din),    //需要发送的数据
-      .full (TxD_FIFO_full),   //判满标志
+  // //fifo发送模块
+  // fifo_generator_0 TXD_FIFO (
+  //     .rst  (rst),
+  //     .clk  (clk),
+  //     .wr_en(TxD_FIFO_wr_en),  //写使能
+  //     .din  (TxD_FIFO_din),    //需要发送的数据
+  //     .full (TxD_FIFO_full),   //判满标志
 
-      .rd_en(TxD_FIFO_rd_en),  //读使能，为1时串口取出数据发送
-      .dout (TxD_FIFO_dout),   //传递给串口待发送的数据
-      .empty(TxD_FIFO_empty)   //判空标志
-  );
+  //     .rd_en(TxD_FIFO_rd_en),  //读使能，为1时串口取出数据发送
+  //     .dout (TxD_FIFO_dout),   //传递给串口待发送的数据
+  //     .empty(TxD_FIFO_empty)   //判空标志
+  // );
 
 
   wire is_base_addr = (mem_addr_i >= 32'h80000000) && (mem_addr_i < 32'h80400000);
