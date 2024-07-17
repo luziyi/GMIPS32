@@ -5,263 +5,165 @@
  * Author:       Tommy Gong
  * description:  
  * ----------------------------------------------------
- * Last Modified: 2024-07-10 09:45:04
+ * Last Modified: 2024-07-17 16:24:46
  */
-
+`include "defines.v"
 module ID (
-    input wire clk,
-    input wire reset,
+    input        clk,
+    input        rst_n,
+    
+    input [31:0] IF_PC,
+    input [31:0] IF_PC_WIRE,
+    input [31:0] IF_Instr,
+    
+    input        WB_RegWriteEn,
+    input [ 4:0] WB_RegWriteID,
+    input [31:0] WB_RegWriteData,
 
-    input wire [31:0] inst,
-    input wire [31:0] pc,
-
-    output reg  [ 4:0] r_addr_1,
-    output reg         r_e_1,
-    input  wire [31:0] r_data_1,
-
-    output reg  [ 4:0] r_addr_2,
-    output reg         r_e_2,
-    input  wire [31:0] r_data_2,
-
-    output reg [31:0] reg_1,
-    output reg [31:0] reg_2,
-
-    output reg [31:0] w_addr,
-    output reg [31:0] w_data,
-    output reg        w_e,
-
-    output reg [5:0] aluop,
-
-    output reg  [31:0] link_addr_o,
-    output reg         branch_flag_o,
-    output reg  [31:0] branch_address_o,
-    //
-    input  wire        ex_we_i,
-    input  wire [ 4:0] ex_waddr_i,
-    input  wire [31:0] ex_wdata_i,
-
-    input wire        mem_we_i,
-    input wire [ 4:0] mem_waddr_i,
-    input wire [31:0] mem_wdata_i,
-
-    input wire [31:0] last_store_addr,
-    input wire [31:0] last_store_data,
-    input wire [31:0] ex_load_addr,
-
-    input  wire [1:0] state,             //串口状态
-    //
-    input  wire       pre_inst_is_load,
-    output wire       stallreq           //暂停信号
+    input      [         31:0] EX_ALUOut,
+    input      [          4:0] EX_RegWriteID,
+    input                      EX_RegWriteEn,
+    
+    output     [         31:0] ID_nextPC,
+    output reg [         31:0] ID_PC,
+    output reg [         31:0] ID_Instr,
+    output reg [          4:0] ID_RsID,
+    output reg [          4:0] ID_RtID,
+    output reg [          4:0] ID_RdID,
+    output reg [         31:0] ID_RsData,
+    output reg [         31:0] ID_RtData,
+    output reg [         15:0] ID_Imm16,
+    output reg [         31:0] ID_ExtImm32,
+    output reg [          4:0] ID_shamt,
+    
+    output reg                 ID_RegWriteEn,
+    output reg [          1:0] ID_RegDst,
+    output reg [          1:0] ID_MemWriteEn,
+    output reg [          1:0] ID_MemReadEn,
+    output reg                 ID_MemtoReg,
+    output                     ID_stall,
+    
+    output reg [`InstrNum-1:0] ID_OptBus,
+    
+    input                      IF_SRAM_stall
 );
 
+  wire [`InstrNum-1:0] OptBus;
+  wire MemtoReg, RegWriteEn;
+  wire [1:0] MemWriteEn, MemReadEn, RegDst;
+  wire [4:0] RsID, RtID, RdID, shamt;
+  wire [31:0] RsData, RtData, ExtImm32;
+  wire [15:0] Imm16;
+  wire [25:0] Imm26;
+  wire        stall;
 
-  reg                                                       stallreq_for_reg1_loadrelate;
-  reg                                                       stallreq_for_reg2_loadrelate;
+  assign ID_stall = stall;
+  reg  EX_isOpt_LWorLB;
+  wire ID_isOpt_LWorLB;
 
-  reg  [31:0]                                               imm_o;
+  assign ID_isOpt_LWorLB = ID_OptBus[2] || ID_OptBus[3];
+  
+  decoder D (
+      .instruction(IF_Instr),
+      .RsID       (RsID),
+      .RtID       (RtID),
+      .RdID       (RdID),
+      .shamt      (shamt),
+      .RegWriteEn (RegWriteEn),
+      .RegDst     (RegDst),
+      .MemWriteEn (MemWriteEn),
+      .MemReadEn  (MemReadEn),
+      .Imm16      (Imm16),
+      .Imm26      (Imm26),
+      .ExtImm32   (ExtImm32),
+      .MemtoReg   (MemtoReg),
+      .OptBus     (OptBus)
+  );
 
-  wire [ 5:0] op = inst[31:26];
-  wire [ 4:0] rs = inst[25:21];
-  wire [ 4:0] rt = inst[20:16];
-  wire [ 4:0] rd = inst[15:11];
-  wire [ 4:0] shamt = inst[10:6];
-  wire [ 5:0] func = inst[5:0];
+  regfile REG (
+      .clk         (clk),
+      .rst_n       (rst_n),
+      .RsID        (RsID),
+      .RtID        (RtID),
+      .RegWriteID  (WB_RegWriteID),
+      .RegWriteData(WB_RegWriteData),
+      .RegWriteEn  (WB_RegWriteEn),
+      .d_out1      (RsData),
+      .d_out2      (RtData)
+  );
+
+  call CNPC (
+      .instruction     (IF_Instr),
+      .PC              (IF_PC_WIRE),
+      .RsData          (RsData),
+      .RtData          (RtData),
+      .RsID            (RsID),
+      .RtID            (RtID),
+      .WB_RegWriteData (WB_RegWriteData),
+      .WB_RegWriteID   (WB_RegWriteID),
+      .WB_RegWriteEn   (WB_RegWriteEn),
+      .MEM_MemWriteAddr(EX_ALUOut),
+      .MEM_RegWriteID  (EX_RegWriteID),
+      .MEM_RegWriteEn  (EX_RegWriteEn),
+      .nextPC          (ID_nextPC)
+  );
+
+  stall StallCtrl (
+      .clk            (clk),
+      .rst_n          (rst_n),
+      .OptBus         (OptBus),
+      .EX_isOpt_LWorLB(EX_isOpt_LWorLB),
+      .EX_RegWriteEn  (EX_RegWriteEn),
+      .EX_RegWriteID  (EX_RegWriteID),
+      .ID_isOpt_LWorLB(ID_isOpt_LWorLB),
+      .ID_RegWriteEn  (ID_RegWriteEn),
+      .ID_RtID        (ID_RtID),
+      .ID_RdID        (ID_RdID),
+      .RsID           (RsID),
+      .RtID           (RtID),
+      .stall          (stall)
+  );
 
 
-  wire [15:0] imm = inst[15:0];
+  always @(posedge clk) begin
+    if (rst_n || stall || IF_SRAM_stall) begin
+      ID_PC           <= 0;
+      ID_Instr        <= 0;
+      ID_OptBus       <= 0;
+      ID_RsID         <= 0;
+      ID_RtID         <= 0;
+      ID_RdID         <= 0;
+      ID_RsData       <= 0;
+      ID_RtData       <= 0;
+      ID_ExtImm32     <= 0;
+      ID_shamt        <= 0;
+      ID_MemReadEn    <= 0;
+      ID_MemWriteEn   <= 0;
+      ID_RegDst       <= 0;
+      ID_MemtoReg     <= 0;
+      ID_RegWriteEn   <= 0;
 
-  wire [25:0] j_addr = inst[25:0];
-
-  wire [31:0] imm_u = {{16{1'b0}}, imm};
-  wire [31:0] imm_s = {{16{imm[15]}}, imm};
-
-  wire [31:0] next_pc = pc + 4'h4;
-
-  wire [31:0] jump_addr = {next_pc[31:28], j_addr, 2'b00};
-  wire [31:0] branch_addr = next_pc + {imm_s[29:0], 2'b00};
-
-  always @(*) begin
-    if (reset == 1'b1) begin
-      aluop    = 6'b000000;
-      r_e_1    = 1'b0;
-      r_addr_1 = 5'b00000;
-      r_e_2    = 1'b0;
-      r_addr_2 = 5'b00000;
-      w_e      = 1'b0;
-      w_addr   = 5'b00000;
-      imm_o    = 32'h00000000;
+      EX_isOpt_LWorLB <= 0;
     end else begin
-      aluop    = 6'b000000;
-      r_e_1    = 1'b0;
-      r_addr_1 = rs;
-      r_e_2    = 1'b0;
-      r_addr_2 = rt;
-      w_e      = 1'b0;
-      w_addr   = rd;
-      imm_o    = 32'h00000000;
-    end
+      ID_PC           <= IF_PC;
+      ID_Instr        <= IF_Instr;
+      ID_RsID         <= RsID;
+      ID_RtID         <= RtID;
+      ID_RdID         <= RdID;
+      ID_ExtImm32     <= ExtImm32;
+      ID_Imm16        <= Imm16;
+      ID_shamt        <= shamt;
+      ID_MemReadEn    <= MemReadEn;
+      ID_MemWriteEn   <= MemWriteEn;
+      ID_RegDst       <= RegDst;
+      ID_MemtoReg     <= MemtoReg;
+      ID_RegWriteEn   <= RegWriteEn;
+      ID_OptBus       <= OptBus;
+      ID_RsData       <= RsData;
+      ID_RtData       <= RtData;
 
-    case (op)
-      6'b001111: begin  //OR
-        aluop  = 6'b000010;
-        r_e_1  = 1'b1;
-        r_e_2  = 1'b0;
-        w_e    = 1'b1;
-        w_addr = rt;
-        imm_o  = {imm, 16'h0000};
-      end
-
-      6'b001101: begin  //ORI
-        aluop  = 6'b000010;
-        r_e_1  = 1'b1;
-        r_e_2  = 1'b0;
-        w_e    = 1'b1;
-        w_addr = rt;
-        imm_o  = imm_u;
-      end
-
-      6'b001111: begin  //LUI
-        aluop  = 6'b000010;
-        r_e_1  = 1'b1;
-        r_e_2  = 1'b0;
-        w_e    = 1'b1;
-        w_addr = rt;
-        imm_o  = {imm, 16'h0000};
-      end
-
-      6'b000101: begin  //BNE
-        r_e_1 = 1'b1;
-        r_e_2 = 1'b1;
-        w_e   = 1'b0;
-      end
-
-      6'b100011: begin  //LW
-        aluop  = 6'b001111;
-        r_e_1  = 1'b1;
-        r_e_2  = 1'b0;
-        w_e    = 1'b1;
-        w_addr = rt;
-        imm_o  = imm_s;
-      end
-
-      6'b101011: begin
-        aluop = 6'b010001;
-        r_e_1 = 1'b1;
-        r_e_2 = 1'b1;
-        w_e   = 1'b0;
-      end
-
-
-
-      6'b000000: begin  //R型指令
-        if (shamt == 5'b00000) begin
-          case (func)
-            6'b100001, 6'b100000: begin  //ADDU, ADD
-              aluop = 6'b001010;
-              r_e_1 = 1'b1;
-              r_e_2 = 1'b1;
-              w_e   = 1'b1;
-            end
-
-            default: begin
-            end
-          endcase
-        end
-      end
-
-
-
-      default: begin
-      end
-    endcase
-  end
-
-  //确定是否跳转及跳转地址
-  always @(*) begin
-    if (reset == 1'b1) begin
-      branch_flag_o    = 1'b0;
-      branch_address_o = 32'h00000000;
-      link_addr_o      = 32'h00000000;
-    end else begin
-      branch_flag_o    = 1'b0;
-      branch_address_o = 32'h00000000;
-      link_addr_o      = 32'h00000000;
-    end
-    case (op)
-
-      6'b000101: begin
-        if (reg_1 != reg_2) begin
-          branch_flag_o    = 1'b1;
-          branch_address_o = branch_addr;
-        end else begin
-        end
-      end
-
-      default: begin
-        branch_flag_o    = 1'b0;
-        branch_address_o = 32'h00000000;
-        link_addr_o      = 32'h00000000;
-      end
-    endcase
-  end
-
-
-  //读取操作数1
-  always @(*) begin
-    reg_1                        = 32'h00000000;
-    stallreq_for_reg1_loadrelate = 1'b0;
-    if (reset == 1'b1) begin
-      reg_1 = 32'h00000000;
-    end else if (pre_inst_is_load && ex_waddr_i == r_addr_1 && r_e_1 == 1'b1 && ex_load_addr == last_store_addr) begin
-      reg_1 = last_store_data;
-      //发生load冒险需要暂停流水线
-    end else if (pre_inst_is_load && ex_waddr_i == r_addr_1 && r_e_1 == 1'b1) begin
-      stallreq_for_reg1_loadrelate = 1'b1;
-      //ex阶段的数据直通
-    end else if (r_e_1 == 1'b1 && ex_we_i == 1'b1 && ex_waddr_i == r_addr_1) begin
-      reg_1 = ex_wdata_i;
-      //mem阶段的数据直通
-    end else if (r_e_1 == 1'b1 && mem_we_i == 1'b1 && mem_waddr_i == r_addr_1) begin
-      reg_1 = mem_wdata_i;
-      //正常情况
-    end else if (r_e_1 == 1'b1) begin
-      reg_1 = r_data_1;
-    end else if (r_e_1 == 1'b0) begin
-      reg_1 = imm_o;
-    end else begin
-      reg_1 = 32'h00000000;
+      EX_isOpt_LWorLB <= ID_OptBus[2] || ID_OptBus[3];
     end
   end
-
-  //确定操作数2
-  always @(*) begin
-    reg_2                        = 32'h00000000;
-    stallreq_for_reg2_loadrelate = 1'b0;
-    if (reset == 1'b1) begin
-      reg_2 = 32'h00000000;
-    end else if (pre_inst_is_load && ex_waddr_i == r_addr_2 && r_e_2 == 1'b1 && ex_load_addr == last_store_addr) begin
-      reg_2 = last_store_data;
-      //发生load冒险需要暂停流水线
-    end else if (pre_inst_is_load && ex_waddr_i == r_addr_2 && r_e_2 == 1'b1) begin
-      stallreq_for_reg2_loadrelate = 1'b1;
-      //ex阶段的数据直通
-    end else if (r_e_2 == 1'b1 && ex_we_i == 1'b1 && ex_waddr_i == r_addr_2) begin
-      reg_2 = ex_wdata_i;
-      //mem阶段的数据直通
-    end else if (r_e_2 == 1'b1 && mem_we_i == 1'b1 && mem_waddr_i == r_addr_2) begin
-      reg_2 = mem_wdata_i;
-      //正常情况
-    end else if (r_e_2 == 1'b1) begin
-      reg_2 = r_data_2;
-    end else if (r_e_2 == 1'b0) begin
-      reg_2 = imm_o;
-    end else begin
-      reg_2 = 32'h00000000;
-    end
-  end
-
-
-  //流水线暂停
-  assign stallreq = stallreq_for_reg1_loadrelate | stallreq_for_reg2_loadrelate;
 
 endmodule

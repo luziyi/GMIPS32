@@ -5,135 +5,116 @@
  * Author:       Tommy Gong
  * description:  
  * ----------------------------------------------------
- * Last Modified: 2024-07-10 10:10:11
+ * Last Modified: 2024-07-17 16:16:07
  */
-
+`include "defines.v"
 module EX (
-    input wire reset,
+    input                 clk,
+    input                 rst_n,
+    input [         31:0] ID_PC,
+    input [         31:0] ID_Instr,
+    input [`InstrNum-1:0] ID_OptBus,
 
-    //从id阶段获得的信息
-    input wire [5:0] aluop,
+    input [4:0] ID_RsID,
+    input [4:0] ID_RtID,
+    input [4:0] ID_RdID,
 
-    input wire [31:0] reg_1,
-    input wire [31:0] reg_2,
+    input [31:0] ID_RtData,
+    input [31:0] ID_RsData,
+    input [ 4:0] ID_shamt,
+    input [15:0] ID_Imm16,
+    input [31:0] ID_ExtImm32,
 
-    input wire [ 4:0] waddr,
-    input wire        we,
-    input wire [31:0] inst,
-    input wire [31:0] ex_pc,
+    input       ID_RegWriteEn,
+    input [1:0] ID_MemWriteEn,
+    input [1:0] ID_MemReadEn,
+    input       ID_MemtoReg,
 
-    //分支跳转存储
-    input wire [31:0] link_addr,
+    input        WB_RegWriteEn,
+    input [ 4:0] WB_RegWriteID,
+    input [31:0] WB_RegWriteData,
 
-    //送往mem阶段的信息
-    output reg  [ 3:0] mem_op,            //存储类型,同时要送往id阶段以判断load相关
-    output reg  [31:0] mem_addr_o,        //存储地址
-    output reg  [31:0] mem_data_o,        //存储数据
-    output wire        this_inst_is_load,
+    output reg [31:0] EX_PC,
+    output reg [31:0] EX_Instr,
+    output reg [31:0] EX_ALUOut,
+    output reg [31:0] EX_MemWriteData,
+    output reg [ 4:0] EX_RegWriteID,
+    output reg        EX_RegWriteEn,
+    output reg [ 1:0] EX_MemWriteEn,
+    output reg [ 1:0] EX_MemReadEn,
+    output reg        EX_MemtoReg,
 
-    //送往wb阶段的信息
-    output reg [31:0] wdata_o,
-    output reg [ 4:0] waddr_o,  //同时要送往id阶段以判断load相关
-    output reg        we_o
+    ////////////////////////
+    output [3:0] EX_base_ram_be_n
 );
-  assign this_inst_is_load = (aluop == 6'b001110) | (aluop == 6'b001111);
 
-  //执行阶段
-  always @(*) begin
-    if (reset == 1'b1) begin
-      wdata_o = 32'h00000000;
-      waddr_o = 5'b00000;
-      we_o    = 1'b0;
+  wire [1:0] RegDst;
+  wire [31:0] ALU_Data_1, ALU_Data_2, ALU_Out_temp;
+  wire [31:0] ALU_Data_1_tmp = ALU_Data_1, ALU_Data_2_tmp = ALU_Data_2;
+  wire [31:0]                                                           MemWriteData;
+  reg EX_isOptSWorLW, EX_isOptSBorLB;
+  wire JAL_Type = ID_OptBus[4] || ID_OptBus[6];
+
+  assign EX_base_ram_be_n = (!EX_isOptSWorLW && !EX_isOptSBorLB) ? 4'b0 : EX_isOptSWorLW ? 4'b0 : (EX_ALUOut[1:0] == 2'b00) ? 4'b1110 : (EX_ALUOut[1:0] == 2'b01) ? 4'b1101 : (EX_ALUOut[1:0] == 2'b10) ? 4'b1011 : (EX_ALUOut[1:0] == 2'b11) ? 4'b0111 : 4'b0;
+
+  ALU_Ctrl ALUCtrl (
+      .ID_RsID         (ID_RsID),
+      .ID_RtID         (ID_RtID),
+      .ID_RdID         (ID_RdID),
+      .ID_RsData       (ID_RsData),
+      .ID_RtData       (ID_RtData),
+      .ID_shamt        (ID_shamt),
+      .ID_ExtImm32     (ID_ExtImm32),
+      .MEM_MemWriteAddr(EX_ALUOut),        //EX_ALUOut总是存放着上一条指令的ALU运算结果，因此实质上EX_ALUOut已经在MEM级
+      .MEM_RegWriteID  (EX_RegWriteID),
+      .MEM_RegWriteEn  (EX_RegWriteEn),
+      .WB_RegWriteEn   (WB_RegWriteEn),    //这里不一样，WB开头的变量都是wire类型，因此直接用
+      .WB_RegWriteID   (WB_RegWriteID),
+      .WB_RegWriteData (WB_RegWriteData),
+      .OptBus          (ID_OptBus),
+      .RegDst          (RegDst),
+      .ALU_Data_1      (ALU_Data_1),
+      .ALU_Data_2      (ALU_Data_2),
+      .MemWriteData    (MemWriteData)
+  );
+
+  ALU ALU (
+      .ALU_Data_1(ALU_Data_1_tmp),
+      .ALU_Data_2(ALU_Data_2_tmp),
+      .OptBus    (ID_OptBus),
+      .Imm16     (ID_Imm16),
+      .ALU_Out   (ALU_Out_temp)
+  );
+
+  always @(posedge clk) begin
+    if (rst_n) begin
+      EX_PC          <= 0;
+      EX_Instr       <= 0;
+      EX_ALUOut      <= 0;
+      EX_MemWriteEn  <= 0;
+      EX_MemReadEn   <= 0;
+      EX_RegWriteEn  <= 0;
+      EX_RegWriteID  <= 0;
+      EX_isOptSBorLB <= 0;
+      EX_isOptSWorLW <= 0;
     end else begin
-      wdata_o = 32'h00000000;
-      waddr_o = waddr;
-      we_o    = we;
-      case (aluop)
-        6'b000001: begin
-          wdata_o = reg_1 & reg_2;
-        end
-        6'b000010: begin
-          wdata_o = reg_1 | reg_2;
-        end
-        6'b000011: begin
-          wdata_o = reg_1 ^ reg_2;
-        end
-        6'b000100: begin
-          wdata_o = ~(reg_1 | reg_2);
-        end
+      EX_PC           <= ID_PC;
+      EX_Instr        <= ID_Instr;
+      EX_ALUOut       <= !JAL_Type ? ALU_Out_temp : ID_PC + 8;
+      EX_MemtoReg     <= ID_MemtoReg;
+      EX_MemReadEn    <= ID_MemReadEn;
+      EX_MemWriteEn   <= ID_MemWriteEn;
+      // EX_MemWriteData <= MemWriteData;
 
-        6'b000101: begin
-          wdata_o = reg_2 << reg_1[4:0];
-        end
-        6'b000110: begin
-          wdata_o = reg_2 >> reg_1[4:0];
-        end
-        6'b000111: begin
-          wdata_o = ($signed(reg_2)) >>> reg_1[4:0];
-        end
-        6'b001000: begin
-          wdata_o = ($signed(reg_1) < $signed(reg_2)) ? 1 : 0;
-        end
-        6'b001001: begin
-          wdata_o = (reg_1 < reg_2) ? 1 : 0;
-        end
-        6'b001010: begin
-          wdata_o = reg_1 + reg_2;
-        end
-        6'b001011: begin
-          wdata_o = reg_1 + (~reg_2) + 1;
-        end
-        6'b001100: begin
-          wdata_o = reg_1 * reg_2;  //无符号乘法代替有符号乘法
-        end
-        6'b001101: begin
-          wdata_o = link_addr;
-        end
-      endcase
+      EX_MemWriteData <= ((ID_MemWriteEn == 2'b10) ? MemWriteData : (ID_MemWriteEn == 2'b01) ? {{24{MemWriteData[7]}}, MemWriteData[7:0]} : 32'h7777) << (8 * ALU_Out_temp[1:0]);
+
+      EX_RegWriteEn   <= ID_RegWriteEn;
+      EX_RegWriteID   <= (RegDst == 2'b00) ? ID_RdID : (RegDst == 2'b01) ? ID_RtID : (RegDst == 2'b10) ? 5'b11111 :  //31号寄存器
+ 4'o77;
+
+      EX_isOptSBorLB  <= ID_OptBus[1] || ID_OptBus[3];
+      EX_isOptSWorLW  <= ID_OptBus[0] || ID_OptBus[2];
     end
   end
-
-  //送往mem阶段的信息
-
-  wire [31:0] imm_s = {{16{inst[15]}}, inst[15:0]};
-
-  always @(*) begin
-    if (reset == 1'b1) begin
-      mem_op     = 4'b0000;
-      mem_addr_o = 32'h00000000;
-      mem_data_o = 32'h00000000;
-    end else begin
-      case (aluop)
-        6'b001110: begin
-          mem_op     = 4'b0001;
-          mem_addr_o = reg_1 + imm_s;
-          mem_data_o = 32'h00000000;
-        end
-        6'b001111: begin
-          mem_op     = 4'b0010;
-          mem_addr_o = reg_1 + imm_s;
-          mem_data_o = 32'h00000000;
-        end
-        6'b010000: begin
-          mem_op     = 4'b0011;
-          mem_addr_o = reg_1 + imm_s;
-          mem_data_o = reg_2;
-        end
-        6'b010001: begin
-          mem_op     = 4'b0100;
-          mem_addr_o = reg_1 + imm_s;
-          mem_data_o = reg_2;
-        end
-        default: begin
-          mem_op     = 4'b0000;
-          mem_addr_o = 32'h00000000;
-          mem_data_o = 32'h00000000;
-        end
-      endcase
-    end
-  end
-
-
-
 
 endmodule

@@ -5,136 +5,60 @@
  * Author:       Tommy Gong
  * description:  
  * ----------------------------------------------------
- * Last Modified: 2024-07-10 10:21:46
+ * Last Modified: 2024-07-17 16:12:26
  */
 
 module MEM (
-    input wire rst,
-    input wire clk,
+    input        clk,
+    input        rst_n,
+    input [31:0] EX_PC,
+    input [31:0] EX_Instr,
+    input [31:0] DataMemOut,
 
-    //来自ex阶段的信息
-    input wire [31:0] mem_pc,
-    input wire        we_i,
-    input wire [ 4:0] waddr_i,
-    input wire [31:0] wdata_i,
+    input [31:0] EX_ALUOut,
+    input [31:0] EX_MemWriteData,
+    input [ 4:0] EX_RegWriteID,
+    input        EX_RegWriteEn,
+    input [ 1:0] EX_MemReadEn,
+    input        EX_MemtoReg,
+    input [ 3:0] EX_base_ram_be_n,
+    input        is_using_uart,
 
-    input wire [ 3:0] mem_op,
-    input wire [31:0] mem_addr_i,
-    input wire [31:0] mem_data_i,
-
-    //送往wb阶段的信息
-    output reg        we_o,
-    output reg [ 4:0] waddr_o,
-    output reg [31:0] wdata_o,
-
-    //送到数据存储器的信息
-    //LB,LW,SB,SW
-    output reg [31:0] mem_addr_o,
-    output reg [31:0] mem_data_o,
-    output reg        mem_we_n,    //读使能，低有效
-    //LB,SB
-    output reg [ 3:0] mem_sel_n,   //字节选择信号，低有效
-    output reg        mem_ce_o,    //是否可以访问存储器
-
-    //从数据存储器读取的信息（LB,LW）
-    input wire [31:0] ram_data_i,
-
-    output wire stallreq
-
+    output reg [31:0] MEM_PC,
+    output reg [31:0] MEM_Instr,
+    output reg [31:0] MEM_MemtoRegData,
+    output reg [31:0] MEM_MemWriteAddr,
+    output reg [31:0] MEM_MemWriteData,
+    output reg [ 4:0] MEM_RegWriteID,
+    output reg        MEM_RegWriteEn,
+    output reg        MEM_MemtoReg
 );
 
-  assign stallreq = (mem_addr_i >= 32'h80000000) && (mem_addr_i < 32'h80400000);
-
-
-  always @(*) begin
-    if (rst == 1'b1) begin
-      we_o       = 1'b0;
-      waddr_o    = 5'b00000;
-      wdata_o    = 32'h00000000;
-
-      mem_addr_o = 32'h00000000;
-      mem_data_o = 32'h00000000;
-      mem_we_n   = 1'b1;
-      mem_sel_n  = 4'b1111;
-      mem_ce_o   = 1'b0;
+  always @(posedge clk) begin
+    if (rst_n) begin
+      MEM_PC           <= 0;
+      MEM_Instr        <= 0;
+      MEM_MemtoRegData <= 0;
+      MEM_MemWriteAddr <= 0;
+      MEM_MemWriteData <= 0;
+      MEM_RegWriteEn   <= 0;
+      MEM_RegWriteID   <= 0;
     end else begin
-      we_o    = we_i;
-      waddr_o = waddr_i;
+      MEM_PC <= EX_PC;
+      MEM_Instr <= EX_Instr;
+      MEM_MemtoRegData <= (EX_MemReadEn == 2'b10) ? DataMemOut :
+                                (EX_MemReadEn == 2'b01) && is_using_uart ? DataMemOut :
+                                (EX_MemReadEn == 2'b01 && EX_base_ram_be_n == 4'b1110) ? {{24{DataMemOut[7]}}, DataMemOut[7:0]} : 
+                                (EX_MemReadEn == 2'b01 && EX_base_ram_be_n == 4'b1101) ? {{24{DataMemOut[15]}}, DataMemOut[15:8]} :
+                                (EX_MemReadEn == 2'b01 && EX_base_ram_be_n == 4'b1011) ? {{24{DataMemOut[23]}}, DataMemOut[23:16]} :
+                                (EX_MemReadEn == 2'b01 && EX_base_ram_be_n == 4'b0111) ? {{24{DataMemOut[31]}}, DataMemOut[31:24]} :
+                                32'h7777;
+      MEM_MemWriteAddr <= EX_ALUOut;
+      MEM_MemWriteData <= EX_MemWriteData;
+      MEM_RegWriteID <= EX_RegWriteID;
+      MEM_RegWriteEn <= EX_RegWriteEn;
+      MEM_MemtoReg <= EX_MemtoReg;
     end
-    case (mem_op)
-      4'b0001: begin  //LB
-        wdata_o    = ram_data_i;
-        mem_addr_o = mem_addr_i;
-        mem_data_o = 32'h00000000;
-        mem_we_n   = 1'b1;
-        mem_ce_o   = 1'b1;
-        case (mem_addr_i[1:0])
-          2'b00: begin
-            mem_sel_n = 4'b1110;
-          end
-          2'b01: begin
-            mem_sel_n = 4'b1101;
-          end
-          2'b10: begin
-            mem_sel_n = 4'b1011;
-          end
-          2'b11: begin
-            mem_sel_n = 4'b0111;
-          end
-          default: begin
-            mem_sel_n = 4'b1111;
-          end
-        endcase
-      end
-      4'b0010: begin  //LW
-        wdata_o    = ram_data_i;
-        mem_addr_o = mem_addr_i;
-        mem_data_o = 32'h00000000;
-        mem_we_n   = 1'b1;
-        mem_ce_o   = 1'b1;
-        mem_sel_n  = 4'b0000;
-      end
-      4'b0011: begin  //SB
-        wdata_o    = 32'h00000000;
-        mem_addr_o = mem_addr_i;
-        mem_data_o = {4{mem_data_i[7:0]}};  //低字节存储到指定位置
-        mem_we_n   = 1'b0;
-        mem_ce_o   = 1'b1;
-        case (mem_addr_i[1:0])
-          2'b00: begin
-            mem_sel_n = 4'b1110;
-          end
-          2'b01: begin
-            mem_sel_n = 4'b1101;
-          end
-          2'b10: begin
-            mem_sel_n = 4'b1011;
-          end
-          2'b11: begin
-            mem_sel_n = 4'b0111;
-          end
-          default: begin
-            mem_sel_n = 4'b1111;
-          end
-        endcase
-      end
-      4'b0100: begin  //SW
-        wdata_o    = 32'h00000000;
-        mem_addr_o = mem_addr_i;
-        mem_data_o = mem_data_i;
-        mem_we_n   = 1'b0;
-        mem_ce_o   = 1'b1;
-        mem_sel_n  = 4'b0000;
-      end
-      default: begin
-        wdata_o    = wdata_i;
-        mem_addr_o = 32'h00000000;
-        mem_data_o = 32'h00000000;
-        mem_we_n   = 1'b1;
-        mem_ce_o   = 1'b0;
-        mem_sel_n  = 4'b1111;
-      end
-    endcase
   end
 
 endmodule

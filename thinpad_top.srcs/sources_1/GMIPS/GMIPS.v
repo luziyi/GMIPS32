@@ -4,330 +4,305 @@
  * Created Date: 2024-07-05 10:37:43
  * Author: Tommy Gong
  * ----------------------------------------------------
- * Last Modified: 2024-07-12 10:42:01
+ * Last Modified: 2024-07-17 16:34:01
  * Modified By: Tommy Gong
  * ----------------------------------------------------
  */
-
-
-
+`include "defines.v"
 module GMIPS (
-    input wire clk,
-    input wire rst,
+    input              clk,
+    input              rst_n,
+    //////////////////
+    //BaseRAM信号
+    inout  wire [31:0] base_ram_data,  //BaseRAM数据，低8位与CPLD串口控制器共�?
+    output wire [19:0] base_ram_addr,  //BaseRAM地址
+    output wire [ 3:0] base_ram_be_n,  //BaseRAM字节使能，低有效。如果不使用字节使能，请保持�?0
+    output wire        base_ram_ce_n,  //BaseRAM片�?�，低有�?
+    output wire        base_ram_oe_n,  //BaseRAM读使能，低有�?
+    output wire        base_ram_we_n,  //BaseRAM写使能，低有�?
 
+    //ExtRAM信号
+    inout  wire [31:0] ext_ram_data,  //ExtRAM数据
+    output wire [19:0] ext_ram_addr,  //ExtRAM地址
+    output wire [ 3:0] ext_ram_be_n,  //ExtRAM字节使能，低有效。如果不使用字节使能，请保持�?0
+    output wire        ext_ram_ce_n,  //ExtRAM片�?�，低有�?
+    output wire        ext_ram_oe_n,  //ExtRAM读使能，低有�?
+    output wire        ext_ram_we_n,  //ExtRAM写使能，低有�?  
 
-    output wire [31:0] rom_addr_o,
-    output wire        rom_ce_o,
-    input  wire [31:0] inst_i,
-
-    input  wire [31:0] ram_data_i,
-    output wire [31:0] ram_addr_o,
-    output wire [31:0] ram_data_o,
-    output wire        ram_we_n,
-    output wire [ 3:0] ram_sel_n,
-    output wire        ram_ce_o,
-
-    input wire [1:0] state
+    //串口
+    input  wire rxd,
+    output wire txd
 );
-  wire [31:0] mem_addr_o;
-  wire [31:0] branch_address_i;
-  wire        branch_flag_i;
 
-  wire        stall;
+  (* mark_debug = "TRUE" *) wire [31:0] IF_PC, IF_Instr;
+  wire [31:0] IF_PC_WIRE,
+  // IF_Instr,
+  ID_nextPC, MEM_MemWriteAddr;
+  wire ID_stall, IF_SRAM_stall;
+  (* mark_debug = "TRUE" *) wire [1:0] EX_MemWriteEn, EX_MemReadEn;
+  (* mark_debug = "TRUE" *) wire [2:0] SRAMCtrl;
+  /////////////////////////////////////
+  wire [31:0] InstrMemOut, DataMemOut, EX_ALUOut, Instr;
+  wire is_using_uart = (EX_ALUOut == 32'hBFD003F8) || (EX_ALUOut == 32'hBFD003FC);
 
-  IF instruction_fetch (
+
+  RamCtrl MEM_Ctrl (
+      .PC              (IF_PC),
+      .MEM_MemWriteAddr(EX_ALUOut),
+      .MEM_MemWriteEn  (EX_MemWriteEn),
+      .MEM_MemReadEn   (EX_MemReadEn),
+      .is_using_uart   (is_using_uart),
+      .IF_SRAM_stall   (IF_SRAM_stall),
+      .SRAMCtrl        (SRAMCtrl)
+  );
+
+  assign Instr = base_ram_data;
+
+  IF InstrFetch (
+      .clk          (clk),
+      .rst_n        (rst_n),
+      .ID_stall     (ID_stall),
+      .ID_nextPC    (ID_nextPC),
+      .Instr        (Instr),
+      .IF_PC_WIRE   (IF_PC_WIRE),
+      .IF_PC        (IF_PC),
+      .IF_Instr     (IF_Instr),
+      .IF_SRAM_stall(IF_SRAM_stall)
+  );
+
+  ///////////////////////////////////////////
+  wire [`InstrNum-1:0] ID_OptBus;
+  wire [31:0] ID_PC, ID_Instr, ID_RsData, ID_RtData, ID_ExtImm32, WB_RegWriteData;
+  //ID_nextPC在IF级定�?
+
+  wire [4:0] ID_shamt, ID_RsID, ID_RtID, ID_RdID, WB_RegWriteID, EX_RegWriteID;
+
+  wire [15:0] ID_Imm16;
+  wire [1:0] ID_RegDst, ID_MemWriteEn, ID_MemReadEn;
+  wire ID_RegWriteEn, ID_MemtoReg;
+  wire EX_RegWriteEn, WB_RegWriteEn;
+
+  ID InstrDecode (
+      .clk            (clk),
+      .rst_n          (rst_n),
+      .IF_PC          (IF_PC),
+      .IF_PC_WIRE     (IF_PC_WIRE),
+      .IF_Instr       (IF_Instr),
+      .WB_RegWriteEn  (WB_RegWriteEn),
+      .WB_RegWriteID  (WB_RegWriteID),
+      .WB_RegWriteData(WB_RegWriteData),
+      .EX_ALUOut      (EX_ALUOut),
+      .EX_RegWriteID  (EX_RegWriteID),
+      .EX_RegWriteEn  (EX_RegWriteEn),
+      .ID_nextPC      (ID_nextPC),
+      .ID_PC          (ID_PC),
+      .ID_Instr       (ID_Instr),
+      .ID_RsID        (ID_RsID),
+      .ID_RtID        (ID_RtID),
+      .ID_RdID        (ID_RdID),
+      .ID_RsData      (ID_RsData),
+      .ID_RtData      (ID_RtData),
+      .ID_Imm16       (ID_Imm16),
+      .ID_ExtImm32    (ID_ExtImm32),
+      .ID_shamt       (ID_shamt),
+      .ID_RegWriteEn  (ID_RegWriteEn),
+      .ID_RegDst      (ID_RegDst),
+      .ID_MemWriteEn  (ID_MemWriteEn),
+      .ID_MemReadEn   (ID_MemReadEn),
+      .ID_MemtoReg    (ID_MemtoReg),
+      .ID_stall       (ID_stall),
+      .ID_OptBus      (ID_OptBus),
+      .IF_SRAM_stall  (IF_SRAM_stall)
+  );
+
+  //////////////////////////////////////////////////
+  wire [31:0] EX_PC, EX_Instr, EX_MemWriteData;
+  //EX_ALUOut在RAMCtrl处定�?
+
+  //EX_RegWriteID在ID级定�?
+
+
+  wire [3:0] EX_base_ram_be_n;
+
+  //EX_MemReadEn,EX_MemWriteEn在RAMCtrl处定�?
+  //EX_RegWriteEn，WB_RegWriteEn在ID级定�?
+
+  EX ExcuteState (
+      .clk          (clk),
+      .rst_n        (rst_n),
+      .ID_PC        (ID_PC),
+      .ID_Instr     (ID_Instr),
+      .ID_OptBus    (ID_OptBus),
+      .ID_RsID      (ID_RsID),
+      .ID_RtID      (ID_RtID),
+      .ID_RdID      (ID_RdID),
+      .ID_RtData    (ID_RtData),
+      .ID_RsData    (ID_RsData),
+      .ID_shamt     (ID_shamt),
+      .ID_Imm16     (ID_Imm16),
+      .ID_ExtImm32  (ID_ExtImm32),
+      .ID_RegWriteEn(ID_RegWriteEn),
+      .ID_MemWriteEn(ID_MemWriteEn),
+      .ID_MemReadEn (ID_MemReadEn),
+      .ID_MemtoReg  (ID_MemtoReg),
+
+      .WB_RegWriteEn  (WB_RegWriteEn),
+      .WB_RegWriteID  (WB_RegWriteID),
+      .WB_RegWriteData(WB_RegWriteData),
+      .EX_PC          (EX_PC),
+      .EX_Instr       (EX_Instr),
+      .EX_ALUOut      (EX_ALUOut),
+      .EX_MemWriteData(EX_MemWriteData),
+      .EX_RegWriteID  (EX_RegWriteID),
+      .EX_RegWriteEn  (EX_RegWriteEn),
+      .EX_MemWriteEn  (EX_MemWriteEn),
+      .EX_MemReadEn   (EX_MemReadEn),
+      .EX_MemtoReg    (EX_MemtoReg),
+
+      .EX_base_ram_be_n(EX_base_ram_be_n)
+  );
+
+  //////////////////////////////////////////////////////////////
+
+  wire [31:0] MEM_PC, MEM_Instr, MEM_MemWriteData, MEM_MemtoRegData;
+  ///            MEM_MemWriteAddr,  在RAMCtrl处定�?
+  wire [4:0] MEM_RegWriteID;
+  wire MEM_RegWriteEn, MEM_MemtoReg;
+
+  MEM MemoryState (
       .clk             (clk),
-      .reset           (reset),
-      .branch_flag_i   (branch_flag_i),
-      .branch_address_i(branch_address_i),
-      .stall           (stall),
-
-      .pc(rom_addr_o),
-      .ce(rom_ce_o)
+      .rst_n           (rst_n),
+      .EX_PC           (EX_PC),
+      .EX_Instr        (EX_Instr),
+      .EX_ALUOut       (EX_ALUOut),
+      .EX_MemWriteData (EX_MemWriteData),
+      .EX_RegWriteID   (EX_RegWriteID),
+      .EX_RegWriteEn   (EX_RegWriteEn),
+      // .EX_MemWriteEn(EX_MemWriteEn),
+      .EX_MemReadEn    (EX_MemReadEn),
+      .EX_MemtoReg     (EX_MemtoReg),
+      .MEM_PC          (MEM_PC),
+      .MEM_Instr       (MEM_Instr),
+      .MEM_MemtoRegData(MEM_MemtoRegData),
+      .MEM_MemWriteAddr(MEM_MemWriteAddr),
+      .MEM_MemWriteData(MEM_MemWriteData),
+      .MEM_RegWriteID  (MEM_RegWriteID),
+      .MEM_RegWriteEn  (MEM_RegWriteEn),
+      .MEM_MemtoReg    (MEM_MemtoReg),
+      .is_using_uart   (is_using_uart),
+      .EX_base_ram_be_n(EX_base_ram_be_n),
+      .DataMemOut      (DataMemOut)
   );
 
-  wire [31:0] id_pc;
-  
-  wire [31:0] id_inst;
-
-  stage1 stage1 (
-      .clk(clk),
-      .rst(rst),
-
-      .if_pc  (rom_addr_o),
-      .if_inst(inst_i),
-      .id_pc  (id_pc),
-      .id_inst(id_inst),
-
-      .stall(stall)
+  WB Writeback (
+      .MEM_MemtoRegData(MEM_MemtoRegData),
+      .MEM_RegWriteData(MEM_MemWriteAddr),
+      .MEM_RegWriteID  (MEM_RegWriteID),
+      .MEM_MemtoReg    (MEM_MemtoReg),
+      .MEM_RegWriteEn  (MEM_RegWriteEn),
+      .WB_RegWriteEn   (WB_RegWriteEn),
+      .WB_RegWriteID   (WB_RegWriteID),
+      .WB_RegWriteData (WB_RegWriteData)
   );
 
+  wire TX_FIFO_full, TX_FIFO_empty, RX_FIFO_full, RX_FIFO_empty;
+  wire TX_FIFO_WriteEn, TX_FIFO_ReadEn, RX_FIFO_WriteEn, RX_FIFO_ReadEn;
+  (* mark_debug = "TRUE" *) wire TX_Start, TX_Busy, RX_Ready, RX_Clear;
+  wire [7:0] TX_FIFO_DataOut, TX_FIFO_DataIn, RX_FIFO_DataOut, RX_FIFO_DataIn;
+  wire [7:0] TX_Data2Send, RX_DataRecv;
 
-  wire [ 4:0] wb_waddr_i;
-  wire [31:0] wb_wdata_i;
-  wire        wb_we_i;
+  /////////////////////////////////////////////////////
+  assign TX_Start        = (!TX_Busy) && (!TX_FIFO_empty);
+  assign TX_FIFO_WriteEn = (EX_ALUOut == 32'hBFD003F8) && EX_MemWriteEn;
+  assign TX_FIFO_ReadEn  = TX_Start;
+  assign TX_FIFO_DataIn  = EX_MemWriteData[7:0];
+  assign TX_Data2Send    = TX_Busy ? TX_Data2Send : TX_FIFO_DataOut;
+  /////////////////////////////////////////////////////
 
-  wire [ 4:0] reg_raddr_1_i;
-  wire        reg_re_1_i;
-  wire [31:0] reg_wdata_1_o;
-
-  wire [ 4:0] reg_raddr_2_i;
-  wire        reg_re_2_i;
-  wire [31:0] reg_wdata_2_o;
-
-  wire [31:0] last_store_addr;
-  wire [31:0] last_store_data;
-  wire        stallreq_from_id;
+  assign RX_FIFO_WriteEn = RX_Ready;
+  assign RX_FIFO_ReadEn  = (EX_ALUOut == 32'hBFD003F8) && EX_MemReadEn;
+  assign RX_FIFO_DataIn  = RX_DataRecv;
+  assign RX_Clear        = RX_Ready && !RX_FIFO_full;
 
 
-  regfile regfile_1 (
-      .rst(rst),
-      .clk(clk),
-
-      .we   (wb_we_i),
-      .waddr(wb_waddr_i),
-      .wdata(wb_wdata_i),
-
-      .re_1   (reg_re_1_i),
-      .raddr_1(reg_raddr_1_i),
-      .rdata_1(reg_wdata_1_o),
-
-      .re_2   (reg_re_2_i),
-      .raddr_2(reg_raddr_2_i),
-      .rdata_2(reg_wdata_2_o)
+  async_receiver #(
+      .ClkFrequency(62000000),
+      .Baud(9600)
+  ) ext_uart_r (
+      .clk           (clk),
+      .RxD           (rxd),         //rxd
+      .RxD_data_ready(RX_Ready),    //数据接收到的标志
+      .RxD_clear     (RX_Clear),    //数据清除的标�?
+      .RxD_data      (RX_DataRecv)  //接收数据
   );
 
-
-  wire [ 5:0] id_aluop_o;
-
-  wire [31:0] id_reg_1_o;
-  wire [31:0] id_reg_2_o;
-
-  wire [ 4:0] id_waddr_o;
-  wire        id_we_o;
-
-  wire [31:0] ex_wdata_o;
-  wire [ 4:0] ex_waddr_o;
-  wire        ex_we_o;
-  wire [ 3:0] mem_op;
-  wire [31:0] id_link_addr_o;
-
-  wire        mem_we_o;
-  wire [ 4:0] mem_waddr_o;
-  wire [31:0] mem_wdata_o;
-
-  wire [31:0] id_inst_o;
-
-  wire        this_inst_is_load;
-
-  ID instruction_decode (
-      .reset(rst),
-      .clk(clk),
-
-      .pc(id_pc),
-      .inst (id_inst),
-
-      .r_addr_1(reg_raddr_1_i),
-      .r_e_1   (reg_re_1_i),
-
-      .r_addr_2(reg_raddr_2_i),
-      .r_e_2   (reg_re_2_i),
-
-      .r_data_1(reg_wdata_1_o),
-      .r_data_2(reg_wdata_2_o),
-
-      .aluop(id_aluop_o),
-
-      .reg_1(id_reg_1_o),
-      .reg_2(id_reg_2_o),
-
-      .w_addr(id_waddr_o),
-      .w_e   (id_we_o),
-      .w_data(id_inst_o),
-
-      .ex_we_i   (ex_we_o),
-      .ex_waddr_i(ex_waddr_o),
-      .ex_wdata_i(ex_wdata_o),
-
-      .mem_we_i   (mem_we_o),
-      .mem_waddr_i(mem_waddr_o),
-      .mem_wdata_i(mem_wdata_o),
-
-      .last_store_addr(last_store_addr),
-      .last_store_data(last_store_data),
-      .ex_load_addr   (mem_addr_o),
-
-      .state(state),
-
-      .branch_flag_o   (pc_branch_flag_i),
-      .branch_address_o(pc_branch_address_i),
-      .link_addr_o     (id_link_addr_o),
-
-      .pre_inst_is_load(this_inst_is_load),
-
-      .stallreq(stallreq_from_id)
-
+  async_transmitter #(
+      .ClkFrequency(62000000),
+      .Baud(9600)
+  ) ext_uart_t (
+      .clk      (clk),
+      .TxD      (txd),          //txd
+      .TxD_busy (TX_Busy),      //发�?�忙标志
+      .TxD_start(TX_Start),     //�?始发送的标志
+      .TxD_data (TX_Data2Send)  //发�?�的数据
   );
 
-
-  wire [ 5:0] id_ex_aluop_o;
-
-  wire [31:0] id_ex_reg_1_o;
-  wire [31:0] id_ex_reg_2_o;
-
-  wire [ 4:0] id_ex_waddr_o;
-  wire        id_ex_we_o;
-
-  wire [31:0] id_ex_link_addr_o;
-
-  wire [31:0] id_ex_inst_o;
-  wire [31:0] id_ex_pc_o;
-
-  stage2 stage2 (
-      .rst(rst),
-      .clk(clk),
-
-      .id_pc   (id_pc),
-      .id_aluop(id_aluop_o),
-
-      .id_reg_1(id_reg_1_o),
-      .id_reg_2(id_reg_2_o),
-
-      .id_waddr(id_waddr_o),
-      .id_we   (id_we_o),
-      .id_inst (id_inst_o),
-
-      .ex_pc   (id_ex_pc_o),
-      .ex_aluop(id_ex_aluop_o),
-
-      .ex_reg_1(id_ex_reg_1_o),
-      .ex_reg_2(id_ex_reg_2_o),
-
-      .ex_waddr(id_ex_waddr_o),
-      .ex_we   (id_ex_we_o),
-      .ex_inst (id_ex_inst_o),
-
-      .id_link_addr(id_link_addr_o),
-      .ex_link_addr(id_ex_link_addr_o),
-
-      .stall(stall)
+  fifo_generator_0 TX_FIFO (
+      .clk  (clk),
+      .rst  (rst_n),
+      .full (TX_FIFO_full),
+      .din  (TX_FIFO_DataIn),
+      .wr_en(TX_FIFO_WriteEn),
+      .empty(TX_FIFO_empty),
+      .rd_en(TX_FIFO_ReadEn),
+      .dout (TX_FIFO_DataOut)
   );
 
-
-  wire [31:0] mem_data_o;
-
-  wire        stallreq_from_baseram;
-
-  EX EXECUTE (
-      .reset(rst),
-
-      .aluop(id_ex_aluop_o),
-
-      .reg_1(id_ex_reg_1_o),
-      .reg_2(id_ex_reg_2_o),
-
-      .waddr(id_ex_waddr_o),
-      .we   (id_ex_we_o),
-      .inst (id_ex_inst_o),
-      .ex_pc(id_ex_pc_o),
-
-      .link_addr(id_ex_link_addr_o),
-
-      .mem_op           (mem_op),
-      .mem_addr_o       (mem_addr_o),
-      .mem_data_o       (mem_data_o),
-      .this_inst_is_load(this_inst_is_load),
-
-      .wdata_o(ex_wdata_o),
-      .waddr_o(ex_waddr_o),
-      .we_o   (ex_we_o)
+  fifo_generator_0 RX_FIFO (
+      .clk  (clk),
+      .rst  (rst_n),
+      .full (RX_FIFO_full),
+      .din  (RX_FIFO_DataIn),
+      .wr_en(RX_FIFO_WriteEn),
+      .empty(RX_FIFO_empty),
+      .rd_en(RX_FIFO_ReadEn),
+      .dout (RX_FIFO_DataOut)
   );
 
+  /////////////////////////////////////////////////////
+  always @(posedge clk) begin
+    if (~ext_ram_we_n) $display("Writing %x to Ext:%x", $signed(ext_ram_data), {ext_ram_addr, 2'b0});
+    if (~ext_ram_oe_n) $display("Reading %x from Ext:%x", $signed(ext_ram_data), {ext_ram_addr, 2'b0});
+  end
 
-  wire        ex_mem_we_o;
-  wire [ 4:0] ex_mem_waddr_o;
-  wire [31:0] ex_mem_wdata_o;
-  wire [31:0] ex_mem_pc_o;
+  assign base_ram_addr = (SRAMCtrl == 3'b000 || SRAMCtrl == 3'b101) ? IF_PC_WIRE[21:2] : ((SRAMCtrl == 3'b100) || (SRAMCtrl == 3'b110)) ? EX_ALUOut[21:2] : 20'b0;
+  assign base_ram_oe_n = !((SRAMCtrl == 3'b000) || (SRAMCtrl == 3'b101) || (((SRAMCtrl == 3'b100) || (SRAMCtrl == 3'b110)) && (EX_MemReadEn != 0)));
+  // assign  base_ram_oe_n = !((SRAMCtrl == 3'b000) || (SRAMCtrl == 3'b101) || (SRAMCtrl == 3'b100) || (SRAMCtrl == 3'b110));
 
-  wire [ 3:0] mem_mem_op;
-  wire [31:0] mem_mem_addr_o;
-  wire [31:0] mem_mem_data_o;
+  assign base_ram_be_n = ((SRAMCtrl == 3'b000) || (SRAMCtrl == 3'b101)) ? 4'b0 : (((SRAMCtrl == 3'b100) || (SRAMCtrl == 3'b110))) ? EX_base_ram_be_n : 4'b1111;
+  assign base_ram_ce_n = 1'b0;
+  assign base_ram_we_n = !(((SRAMCtrl == 3'b100) || (SRAMCtrl == 3'b110)) && (EX_MemWriteEn != 0) && !is_using_uart);
+  assign base_ram_data = (!base_ram_we_n && ((SRAMCtrl == 3'b110) || (SRAMCtrl == 3'b100))) ? EX_MemWriteData : 32'bzzzz_z;
 
-  stage3 stage3 (
-      .rst(rst),
-      .clk(clk),
+  assign ext_ram_addr = (SRAMCtrl == 3'b010) ? IF_PC_WIRE[21:2] : ((SRAMCtrl == 3'b111) || (SRAMCtrl == 3'b101)) ? EX_ALUOut[21:2] : 20'b0;
+  assign ext_ram_be_n = (SRAMCtrl == 3'b010) ? 4'b0 : ((SRAMCtrl == 3'b101) || (SRAMCtrl == 3'b111)) ? EX_base_ram_be_n : 4'b1111;
+  //    assign  ext_ram_be_n = 0;
+  assign ext_ram_ce_n = 1'b0;
+  //    assign  ext_ram_oe_n = !(ext_ram_we_n && EX_MemReadEn);
+  assign ext_ram_oe_n = !((SRAMCtrl == 3'b010) || (((SRAMCtrl == 3'b101) || (SRAMCtrl == 3'b111)) && (EX_MemReadEn != 0) && !is_using_uart));
+  // assign  ext_ram_oe_n =  (SRAMCtrl == 3'b010) ? 1'b0 :
+  //                         ((SRAMCtrl == 3'b101) || (SRAMCtrl == 3'b111)) ? (EX_MemReadEn == 0) :
+  //                         1'b1;
+  assign ext_ram_we_n = !(((SRAMCtrl == 3'b101) || (SRAMCtrl == 3'b111)) && (EX_MemWriteEn != 0) && !is_using_uart);
+  assign ext_ram_data = (!ext_ram_we_n && ((SRAMCtrl == 3'b111) || (SRAMCtrl == 3'b101))) ? EX_MemWriteData : 32'bzzzz_z;
 
-      .ex_pc   (id_ex_pc_o),
-      .ex_we   (ex_we_o),
-      .ex_waddr(ex_waddr_o),
-      .ex_wdata(ex_wdata_o),
-
-      .ex_mem_op  (mem_op),
-      .ex_mem_addr(mem_addr_o),
-      .ex_mem_data(mem_data_o),
-
-      .mem_pc      (ex_mem_pc_o),
-      .mem_mem_op  (mem_mem_op),
-      .mem_mem_addr(mem_mem_addr_o),
-      .mem_mem_data(mem_mem_data_o),
-
-      .mem_we   (ex_mem_we_o),
-      .mem_waddr(ex_mem_waddr_o),
-      .mem_wdata(ex_mem_wdata_o),
-
-      .last_store_addr(last_store_addr),
-      .last_store_data(last_store_data)
-  );
+  assign DataMemOut = (is_using_uart && EX_ALUOut == 32'hBFD003F8) ? {24'b0, RX_FIFO_DataOut} :
+                        (is_using_uart && EX_ALUOut == 32'hBFD003FC) ? {30'b0, !RX_FIFO_empty, !TX_FIFO_full} : 
+                        ((SRAMCtrl == 3'b100) || (SRAMCtrl == 3'b110) && !EX_MemWriteEn && (EX_ALUOut <= 32'h80400000)) ? base_ram_data :
+                        ((SRAMCtrl == 3'b101) || (SRAMCtrl == 3'b111) && !EX_MemWriteEn && (EX_ALUOut <= 32'h80800000)) ? ext_ram_data :
+                        32'hffffffff;
+  assign InstrMemOut = (((SRAMCtrl == 3'b000) || (SRAMCtrl == 3'b101)) || ((SRAMCtrl == 3'b100) && !IF_SRAM_stall && !ID_stall)) ? base_ram_data : (((SRAMCtrl == 3'b010) || (SRAMCtrl == 3'b110)) || ((SRAMCtrl == 3'b111) && !IF_SRAM_stall && !ID_stall)) ? ext_ram_data : 32'h00000000;
 
 
-  MEM MEM_1 (
-      .rst(rst),
-      .clk(clk),
 
-      .mem_pc    (ex_mem_pc_o),
-      .we_i   (ex_mem_we_o),
-      .waddr_i(ex_mem_waddr_o),
-      .wdata_i(ex_mem_wdata_o),
-
-      .mem_op    (mem_mem_op),
-      .mem_addr_i(mem_mem_addr_o),
-      .mem_data_i(mem_mem_data_o),
-
-      .we_o   (mem_we_o),
-      .waddr_o(mem_waddr_o),
-      .wdata_o(mem_wdata_o),
-
-      .mem_addr_o(ram_addr_o),
-      .mem_data_o(ram_data_o),
-      .mem_we_n  (ram_we_n),    // 是否为写操作
-
-      .mem_sel_n(ram_sel_n),
-      .mem_ce_o (ram_ce_o),   // 使能信号
-
-      .ram_data_i(ram_data_i),  // 来自存储器
-
-      .stallreq(stallreq_from_baseram)
-  );
-
-  stage4 stage4 (
-      .clk(clk),
-      .rst(rst),
-
-      .stall(stall),
-
-      .mem_waddr(mem_waddr_o),
-      .mem_we   (mem_we_o),
-      .mem_wdata(mem_wdata_o),
-
-      .wb_waddr(wb_waddr_i),
-      .wb_we   (wb_we_i),
-      .wb_wdata(wb_wdata_i)
-  );
-
-  stall stall_m (
-      .rst                  (rst),
-      .stallreq_from_id     (stallreq_from_id),
-      .stallreq_from_baseram(stallreq_from_baseram),
-      .stall                (stall)
-  );
 endmodule

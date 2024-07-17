@@ -5,80 +5,40 @@
  * Author:       Tommy Gong
  * description:  寄存器文件，32*32位
  * ----------------------------------------------------
- * Last Modified: 2024-07-10 10:32:22
+ * Last Modified: 2024-07-17 15:29:24
  */
 
-module regfile(
-    input wire clk,
-    input wire rst,
-
-    //mem阶段传递的参数
-    input wire        we,
-    input wire [ 4:0] waddr,
-    input wire [31:0] wdata,
-
-    //id阶段传递的参数及取得的信息
-    input  wire        re_1,
-    input  wire [ 4:0] raddr_1,
-    output reg  [31:0] rdata_1,
-
-    input  wire        re_2,
-    input  wire [ 4:0] raddr_2,
-    output reg  [31:0] rdata_2
+module regfile (
+    input         clk,
+    input         rst_n,
+    input  [ 4:0] RsID,
+    input  [ 4:0] RtID,
+    input  [ 4:0] RegWriteID,
+    input  [31:0] RegWriteData,
+    input         RegWriteEn,
+    output [31:0] d_out1,
+    output [31:0] d_out2
 );
 
-  reg     [31:0] regs[0:31];  // 32个32位通用寄存器
+  reg [31:0] Reg[31:0];
 
-  integer        i;
+  initial begin
+    Reg[0] = 0;
+  end
 
-  //写入操作（本模块相当于wb阶段）
+  assign d_out1 = (!RsID) ? 32'b0 :
+ (RsID == RegWriteID) ? RegWriteData : Reg[RsID];
+
+  assign d_out2 = (!RtID) ? 32'b0 :
+ (RtID == RegWriteID) ? RegWriteData : Reg[RtID];
+
+  integer i;
   always @(posedge clk) begin
-    if (rst == 1'b1) begin
-      for (i = 0; i < 32; i = i + 1) begin
-        regs[i] <= 32'h00000000;
-      end
+    if (rst_n) begin
+      for (i = 0; i < 32; i = i + 1'b1) Reg[i] = 32'b0;
     end else begin
-      if (we == 1'b1 && waddr != 5'b00000) begin
-        regs[waddr] <= wdata;  //0号寄存器不可写入
-      end
+      if (RegWriteEn && RegWriteID != 0) Reg[RegWriteID] <= RegWriteData;
     end
   end
 
-  //读端口1 组合逻辑
-  always @(*) begin
-    if (rst == 1'b1) begin
-      rdata_1 = 32'h00000000;
-    end else begin
-      if (re_1 == 1'b1) begin
-        if (raddr_1 == 5'b00000) begin
-          rdata_1 = 32'h00000000;
-        end else if (raddr_1 == waddr && we == 1'b1) begin
-          rdata_1 = wdata;  //处理数据冒险
-        end else begin
-          rdata_1 = regs[raddr_1];
-        end
-      end else begin
-        rdata_1 = 32'h00000000;
-      end
-    end
-  end
-
-  //读端口2 组合逻辑
-  always @(*) begin
-    if (rst == 1'b1) begin
-      rdata_2 = 32'h00000000;
-    end else begin
-      if (re_2 == 1'b1) begin
-        if (raddr_2 == 5'b00000) begin
-          rdata_2 = 32'h00000000;
-        end else if (raddr_2 == waddr && we == 1'b1) begin
-          rdata_2 = wdata;  //处理数据冒险
-        end else begin
-          rdata_2 = regs[raddr_2];
-        end
-      end else begin
-        rdata_2 = 32'h00000000;
-      end
-    end
-  end
 endmodule
