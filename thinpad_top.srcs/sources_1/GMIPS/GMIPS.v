@@ -4,7 +4,7 @@
  * Created Date: 2024-07-05 10:37:43
  * Author: Tommy Gong
  * ----------------------------------------------------
- * Last Modified: 2024-07-17 16:34:01
+ * Last Modified: 2024-07-24 10:17:34
  * Modified By: Tommy Gong
  * ----------------------------------------------------
  */
@@ -41,7 +41,7 @@ module GMIPS (
   wire ID_stall, IF_SRAM_stall;
   (* mark_debug = "TRUE" *) wire [1:0] EX_MemWriteEn, EX_MemReadEn;
   (* mark_debug = "TRUE" *) wire [2:0] SRAMCtrl;
-  /////////////////////////////////////
+
   wire [31:0] InstrMemOut, DataMemOut, EX_ALUOut, Instr;
   wire is_using_uart = (EX_ALUOut == 32'hBFD003F8) || (EX_ALUOut == 32'hBFD003FC);
 
@@ -70,7 +70,7 @@ module GMIPS (
       .IF_SRAM_stall(IF_SRAM_stall)
   );
 
-  ///////////////////////////////////////////
+
   wire [`InstrNum-1:0] ID_OptBus;
   wire [31:0] ID_PC, ID_Instr, ID_RsData, ID_RtData, ID_ExtImm32, WB_RegWriteData;
   //ID_nextPC在IF级定�?
@@ -230,10 +230,10 @@ module GMIPS (
       .Baud(9600)
   ) ext_uart_r (
       .clk           (clk),
-      .RxD           (rxd),         //rxd
-      .RxD_data_ready(RX_Ready),    //数据接收到的标志
-      .RxD_clear     (RX_Clear),    //数据清除的标�?
-      .RxD_data      (RX_DataRecv)  //接收数据
+      .RxD           (rxd),
+      .RxD_data_ready(RX_Ready),
+      .RxD_clear     (RX_Clear),
+      .RxD_data      (RX_DataRecv)
   );
 
   async_transmitter #(
@@ -241,33 +241,12 @@ module GMIPS (
       .Baud(9600)
   ) ext_uart_t (
       .clk      (clk),
-      .TxD      (txd),          //txd
-      .TxD_busy (TX_Busy),      //发�?�忙标志
-      .TxD_start(TX_Start),     //�?始发送的标志
-      .TxD_data (TX_Data2Send)  //发�?�的数据
+      .TxD      (txd),
+      .TxD_busy (TX_Busy),
+      .TxD_start(TX_Start),
+      .TxD_data (TX_Data2Send)
   );
 
-  fifo_generator_0 TX_FIFO (
-      .clk  (clk),
-      .rst  (rst_n),
-      .full (TX_FIFO_full),
-      .din  (TX_FIFO_DataIn),
-      .wr_en(TX_FIFO_WriteEn),
-      .empty(TX_FIFO_empty),
-      .rd_en(TX_FIFO_ReadEn),
-      .dout (TX_FIFO_DataOut)
-  );
-
-  fifo_generator_0 RX_FIFO (
-      .clk  (clk),
-      .rst  (rst_n),
-      .full (RX_FIFO_full),
-      .din  (RX_FIFO_DataIn),
-      .wr_en(RX_FIFO_WriteEn),
-      .empty(RX_FIFO_empty),
-      .rd_en(RX_FIFO_ReadEn),
-      .dout (RX_FIFO_DataOut)
-  );
 
   /////////////////////////////////////////////////////
   always @(posedge clk) begin

@@ -5,7 +5,7 @@
  * Author:       Tommy Gong
  * description:  
  * ----------------------------------------------------
- * Last Modified: 2024-07-17 16:16:07
+ * Last Modified: 2024-07-17 17:03:38
  */
 `include "defines.v"
 module EX (
@@ -104,7 +104,6 @@ module EX (
       EX_MemtoReg     <= ID_MemtoReg;
       EX_MemReadEn    <= ID_MemReadEn;
       EX_MemWriteEn   <= ID_MemWriteEn;
-      // EX_MemWriteData <= MemWriteData;
 
       EX_MemWriteData <= ((ID_MemWriteEn == 2'b10) ? MemWriteData : (ID_MemWriteEn == 2'b01) ? {{24{MemWriteData[7]}}, MemWriteData[7:0]} : 32'h7777) << (8 * ALU_Out_temp[1:0]);
 
